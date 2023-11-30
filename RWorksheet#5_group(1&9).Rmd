@@ -1,0 +1,144 @@
+---
+title: "RWorksheet#5_group(1&9)."
+author: "GROUP 1&9 BSIT-2B"
+date: "2023-11-30"
+output: pdf_document
+---
+
+```{r}
+library(rvest)
+library(httr)
+library(dplyr) 
+library(polite)
+library(kableExtra)
+```
+
+##Extracting TV Shows Reviews
+
+1. Each group needs to extract the top 50 tv shows in Imdb.com. It will include the rank, the title of the
+tv show, tv rating, the number of people who voted, the number of episodes, the year it was released.
+
+```{r}
+
+polite::use_manners(save_as = 'polite_scrape.R')
+
+url <- 'https://m.imdb.com/chart/toptv/?ref_=nv_tvv_250'
+
+session <- bow(url, user_agent = "Educational")
+session
+
+title_show <- character(0)
+list_year_ep <-character(0)
+ 
+title_show <- scrape(session) %>%
+  html_nodes('h3.ipc-title__text') %>% 
+  html_text
+ 
+title_show_only <- as.data.frame(title_show[2:51])
+title_show_only
+colnames(title_show_only) <- "Rank"
+
+show_df <- strsplit(as.character(title_show_only$Rank),".",fixed = TRUE)
+show_df <- data.frame(do.call(rbind,show_df))
+
+show_df <- show_df[-c(3:4)] 
+
+#renaming column 1 and 2
+colnames(show_df) <- c("Rank","Title") 
+show_df
+ 
+
+list_year_ep <- scrape(session) %>%
+  html_nodes('span.sc-479faa3c-8.bNrEFi.cli-title-metadata-item
+') %>% 
+  html_text
+
+ 
+years_only <- c()
+for (i in seq(1, length(list_year_ep), by = 3)) {
+  years_only <- c(years_only, list_year_ep[i])
+}
+Year <- years_only[1:50]
+Year
+
+ep_only <- c()
+for (i in seq(2, length(list_year_ep), by = 3)) {
+  ep_only <- c(ep_only, list_year_ep[i])
+}
+Episode <- ep_only[1:50]
+Episode
+
+df_title_ep <- data.frame(Episode,Year)
+colnames(df_title_ep) <- c("Number Of Episodes","Year Released") 
+
+df_title_ep
+
+ 
+list_rating <- scrape(session) %>%
+  html_nodes('span.ipc-rating-star.ipc-rating-star--base.ipc-rating-star--imdb.ratingGroup--imdb-rating') %>% 
+  html_text()
+
+wholeRATING <- as.data.frame(list_rating[1:50])
+colnames(wholeRATING) <- "Rating"
+
+# Extracting Rating and Vote_Count using regular expressions
+wholeRATING$Rating <- gsub("\\s*\\([^)]+\\)\\s*", "", wholeRATING$Rating)
+wholeRATING$Vote_Count <- gsub(".*\\(([^)]+)\\)", "\\1", list_rating[1:50])
+
+
+df_rating_vote <- wholeRATING
+colnames(df_rating_vote) <- c("Rating","Vote Count") 
+df_rating_vote
+
+
+ 
+final_df <- cbind(show_df, df_rating_vote,df_title_ep )
+
+final_df
+```
+ 
+From the 50 tv shows, select at least 5 tv shows to scrape the user reviews that will include the
+reviewer’s name, date of reviewed, user rating, title of the review, and text reviews.
+ 
+```{r}
+
+tv_show_urls <- c(
+  "https://www.imdb.com/title/tt0081846/reviews",  #COSMOS
+  "https://www.imdb.com/title/tt0903747/reviews", #BREAKING BAD
+  "https://www.imdb.com/title/tt0185906/reviews", # BAND OF BROTHERS
+  "https://www.imdb.com/title/tt7366338/reviews", #CHERNOBYL
+  "https://www.imdb.com/title/tt0417299/reviews" #Avatar: The Last Airbender
+)
+
+all_reviews <- list()
+
+for (url in tv_show_urls) {
+  # Read HTML content
+  page <- read_html(url)
+  
+  reviewers_name <- page %>% html_nodes(".display-name-link") %>% html_text()
+  dates <- page %>% html_nodes("span.review-date") %>% html_text()
+  user_ratings <- page %>% html_nodes("span.rating-other-user-rating") %>% html_text()
+  text_reviews <- page %>% html_nodes("div.text") %>% html_text()
+  
+  # Create a data frame
+  reviews_df <- data.frame(
+    Reviewer_Name = reviewers_name[1:5],
+    Date = dates[1:5],
+    User_Rating = user_ratings[1:5],
+    Text_Review = text_reviews[1:5],
+    stringsAsFactors = FALSE
+  )
+  
+   all_reviews[[url]] <- reviews_df
+}
+
+final_reviews_df <- do.call(rbind, all_reviews)
+colnames(final_reviews_df) <- c("Name", "Date of Review", "User Rating", "Text Reviews")
+
+rownames(final_reviews_df) <- NULL
+
+final_reviews_df
+```
+
+ 
